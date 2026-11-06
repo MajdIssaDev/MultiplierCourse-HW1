@@ -164,6 +164,8 @@ public sealed class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
         if (name.Length == 0 || name.Length > 64) { Publish("Enter a room name (1-64 characters)."); return; }
         if (create && (capacity < 2 || capacity > 10)) { Publish("Maximum players must be from 2 to 10."); return; }
         if (create && Sessions.Any(s => s.Name == name)) { Publish("That room already exists. Select it in Available rooms."); return; }
+        int sceneIndex = gameObject.scene.buildIndex;
+        if (sceneIndex < 0) { Publish("Add the Lobby scene to Build Settings before joining a room."); return; }
         int ticket = ++operation;
         State = LobbyState.JoiningRoom;
         RoomName = name;
@@ -174,9 +176,17 @@ public sealed class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
         var runner = networkRunner;
         try
         {
+            // A runner is recreated after leaving. Retrieve its scene manager once per connection,
+            // adding one if needed so every runner has an explicit scene-management implementation.
+            if (!runner.TryGetComponent<NetworkSceneManagerDefault>(out var sceneManager))
+                sceneManager = runner.gameObject.AddComponent<NetworkSceneManagerDefault>();
+            // Adopt the already loaded Lobby scene instead of loading a duplicate and rebuilding its UI.
+            sceneManager.IsSceneTakeOverEnabled = true;
             var result = await runner.StartGame(new StartGameArgs
             {
                 GameMode = GameMode.Shared,
+                Scene = SceneRef.FromIndex(sceneIndex),
+                SceneManager = sceneManager,
                 SessionName = name,
                 CustomLobbyName = LobbyName,
                 PlayerCount = capacity,

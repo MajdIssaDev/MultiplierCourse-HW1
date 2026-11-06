@@ -3317,6 +3317,9 @@ namespace Fusion.Editor {
     /// </summary>
     public static void RegisterCustomDependencyWithMppmWorkaround(string customDependency, Hash128 hash) {
       if (FusionMppm.Status == FusionMppmStatus.VirtualInstance) {
+        // Register the same deterministic dependency hashes during clone initialization.
+        // This updates process-local dependency metadata without refreshing or writing imported assets.
+        AssetDatabase.RegisterCustomDependency(customDependency, hash);
         return;
       }
       FusionMppm.MainEditor?.Send(new FusionMppmRegisterCustomDependencyCommand() { DependencyName = customDependency, Hash = hash.ToString(), });
@@ -5082,6 +5085,8 @@ namespace Fusion.Editor {
     /// <param name="forceImmediate"></param>
     public void Refresh(bool forceImmediate = false) {
       if (FusionMppm.Status == FusionMppmStatus.VirtualInstance) {
+        // A clone must initialize custom dependency metadata too, but cannot reimport assets.
+        Update(refreshAssetDB: false);
         return;
       }
       if (IsGlobalImmediateRefreshEnabled || forceImmediate || Application.isBatchMode) {
@@ -5139,11 +5144,14 @@ namespace Fusion.Editor {
         return;
       }
 
-      if (SessionState.GetBool($"FusionCustomDependency/RegisteredEagerDependencies", false)) {
-        return;
+      // Clones need their own dependency registrations after every domain reload.
+      // Keep the main Editor's existing session guard to avoid unnecessary repeated scans there.
+      if (FusionMppm.Status != FusionMppmStatus.VirtualInstance) {
+        if (SessionState.GetBool($"FusionCustomDependency/RegisteredEagerDependencies", false)) {
+          return;
+        }
+        SessionState.SetBool($"FusionCustomDependency/RegisteredEagerDependencies", true);
       }
-
-      SessionState.SetBool($"FusionCustomDependency/RegisteredEagerDependencies", true);
 
       foreach (var field in TypeCache.GetFieldsWithAttribute<FusionCustomDependencyEagerAttribute>()) {
         Assert.Always(field.FieldType == typeof(FusionCustomDependency));
@@ -15430,6 +15438,12 @@ namespace Fusion.Editor {
     private const string ManifestFile = "manifest.json";
 
     static FusionInstaller() {
+      // MPPM clones use the main Editor's packages and settings and may not contain a manifest.
+      // Installation and define updates belong to the writable main Editor, never the read-only clone.
+      if (FusionMppm.Status == FusionMppmStatus.VirtualInstance) {
+        return;
+      }
+
       if (PlayerSettings.runInBackground == false) {
         FusionEditorLog.LogInstaller($"Setting {nameof(PlayerSettings)}.{nameof(PlayerSettings.runInBackground)} to true");
         PlayerSettings.runInBackground = true;

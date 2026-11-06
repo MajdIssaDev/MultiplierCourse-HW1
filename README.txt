@@ -43,3 +43,9 @@ Validation performed:
 Submission branch: Assignment-1 (Git branch names cannot contain spaces).
 
 AI assistance: AI-assisted code review, live testing, and final code/settings cleanup were used.
+
+Editor and Multiplayer Play Mode setup:
+- Open this repository root, not another copy of the project.
+- Room startup supplies the current Lobby scene and a NetworkSceneManagerDefault that adopts the loaded scene.
+- The bundled Fusion editor compatibility patch keeps package installation in the main Editor and registers deterministic custom dependency hashes locally during clone initialization, without requesting asset reimports.
+- Library, including Library/VP virtual-player caches, is intentionally ignored by Git. After moving an existing project, recreate its virtual-player cache so its folder links point to the new location.
