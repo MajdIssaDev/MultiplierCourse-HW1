@@ -1,0 +1,37 @@
+# Unity-generated caches, local settings, logs, and builds
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Bb]uild/
+/[Bb]uilds/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# Local IDE settings and generated solution/project files
+/.vs/
+/.idea/
+/.vscode/
+/.vsconfig
+/*.csproj
+/*.unityproj
+/*.booproj
+/*.sln
+/*.slnx
+/*.suo
+/*.user
+/*.userprefs
+/*.pidb
+/*.opendb
+/*.VC.db
+
+# Submission archives are separate from the source repository
+/*.zip
+
+# OS-generated files and Unity diagnostic output
+.DS_Store
+Thumbs.db
+Desktop.ini
+/sysinfo.txt
+/mono_crash.*
