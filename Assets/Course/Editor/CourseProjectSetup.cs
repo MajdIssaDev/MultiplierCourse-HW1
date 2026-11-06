@@ -28,6 +28,8 @@ public static class CourseProjectSetup
         PlayerSettings.defaultScreenHeight = 700;
         PlayerSettings.fullScreenMode = FullScreenMode.Windowed;
         var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
+        // Editor-only, one-time scene creation: Unity supplies a camera tagged MainCamera in this new scene.
+        // Camera.main retrieves that generated camera; it is never searched for during gameplay.
         var camera = Camera.main;
         camera.clearFlags = CameraClearFlags.SolidColor;
         camera.backgroundColor = new Color(0.035f, 0.06f, 0.10f);
@@ -43,7 +45,7 @@ public static class CourseProjectSetup
         var scenes = new System.Collections.Generic.List<EditorBuildSettingsScene>
             { new EditorBuildSettingsScene(LobbyPath, true) };
         foreach (var existing in EditorBuildSettings.scenes)
-            if (existing.path != LobbyPath) scenes.Add(existing);
+            if (existing.path != LobbyPath && File.Exists(existing.path)) scenes.Add(existing);
         EditorBuildSettings.scenes = scenes.ToArray();
         AssetDatabase.SaveAssets();
         Selection.activeGameObject = lobby.gameObject;

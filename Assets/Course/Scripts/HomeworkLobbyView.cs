@@ -10,7 +10,9 @@ public sealed class HomeworkLobbyView : MonoBehaviour
 {
     private LobbyManager model;
     private Font font;
-    private Transform root, roomRows;
+    private Transform root;
+    private RectTransform roomRows;
+    private Text leaveLabel;
     private GameObject lobbyPanel, roomPanel;
     private Text status, context, roomTitle, count, players, empty;
     private InputField lobbyInput, roomInput, capacityInput, nameInput;
@@ -21,6 +23,8 @@ public sealed class HomeworkLobbyView : MonoBehaviour
         model = manager;
         font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         var canvas = new GameObject("Lobby UI", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        // The Canvas and CanvasScaler are created above at runtime, so no Inspector references exist.
+        // Retrieve them once during setup; networking callbacks use the cached UI fields below.
         canvas.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
         var scale = canvas.GetComponent<CanvasScaler>();
         scale.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -28,7 +32,8 @@ public sealed class HomeworkLobbyView : MonoBehaviour
         scale.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
         root = canvas.transform;
         canvas.AddComponent<CanvasTextRefresher>();
-        if (FindAnyObjectByType<EventSystem>() == null)
+        // Reuse the active EventSystem when the scene already supplies one, avoiding a scene search.
+        if (EventSystem.current == null)
             new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
 
         Box(root,"Background",0,0,1000,690,new Color(.76f,.76f,.76f));
@@ -38,6 +43,8 @@ public sealed class HomeworkLobbyView : MonoBehaviour
         lobbyInput = Input(root,model.LobbyName,125,90,280,32);
         connect = Button(root,"Join lobby",420,90,130,32,()=>model.JoinLobby(lobbyInput.text));
         leave = Button(root,"Leave lobby",565,90,170,32,()=>model.LeaveOrCancel());
+        // Each generated button has one Text child. Cache it once for state-dependent caption changes.
+        leaveLabel = leave.GetComponentInChildren<Text>();
 
         Label(root,"Your name",20,146,105,26,16);
         nameInput = Input(root,model.PlayerName,125,140,280,32);
@@ -62,13 +69,15 @@ public sealed class HomeworkLobbyView : MonoBehaviour
         var scroll = scrollGo.AddComponent<ScrollRect>();
         var content = new GameObject("Sessions",typeof(RectTransform));
         content.transform.SetParent(scrollGo.transform,false);
-        roomRows = content.transform;
+        // The content object was just created with a RectTransform; retrieve and cache that component once.
         var contentRect = content.GetComponent<RectTransform>();
+        roomRows = contentRect;
         contentRect.anchorMin = new Vector2(0,1);
         contentRect.anchorMax = new Vector2(1,1);
         contentRect.pivot = new Vector2(0,1);
         contentRect.sizeDelta = new Vector2(0,145);
         scroll.content = contentRect;
+        // Box created this viewport RectTransform. Retrieve it once while wiring the generated scroll view.
         scroll.viewport = scrollGo.GetComponent<RectTransform>();
         scroll.horizontal = false;
         scroll.movementType = ScrollRect.MovementType.Clamped;
@@ -94,7 +103,7 @@ public sealed class HomeworkLobbyView : MonoBehaviour
         Paint(connect, offline);
         leave.gameObject.SetActive(!offline);
         Paint(leave, !leaving);
-        leave.GetComponentInChildren<Text>().text = room ? "Leave room" : lobby ? "Leave lobby" : leaving ? "Leaving..." : "Cancel";
+        leaveLabel.text = room ? "Leave room" : lobby ? "Leave lobby" : leaving ? "Leaving..." : "Cancel";
         lobbyPanel.SetActive(!room);
         roomPanel.SetActive(room);
         Paint(create, lobby);
@@ -109,7 +118,7 @@ public sealed class HomeworkLobbyView : MonoBehaviour
             entries[i]+(i+5 < entries.Length ? "                    "+entries[i+5] : "")));
 
         foreach (Transform child in roomRows) Destroy(child.gameObject);
-        roomRows.GetComponent<RectTransform>().sizeDelta = new Vector2(0,Mathf.Max(145,model.Sessions.Count*38));
+        roomRows.sizeDelta = new Vector2(0,Mathf.Max(145,model.Sessions.Count*38));
         empty.text = !lobby ? "Join a lobby first." : model.Sessions.Count == 0 ? "No rooms." : model.Sessions.Count+" room(s)";
         int row = 0;
         foreach (var session in model.Sessions)
@@ -131,6 +140,8 @@ public sealed class HomeworkLobbyView : MonoBehaviour
         control.interactable = enabled;
         if (control.targetGraphic != null)
             control.targetGraphic.color = enabled ? (control is InputField ? Color.white : new Color(.93f,.93f,.93f)) : new Color(.72f,.72f,.72f);
+        // Runtime-generated controls can own multiple text children. Style them together on model events,
+        // including inactive children so re-enabled controls retain readable captions; never poll per frame.
         foreach (var text in control.GetComponentsInChildren<Text>(true))
             text.color = enabled ? Color.black : new Color(.25f,.25f,.25f);
     }
@@ -139,6 +150,7 @@ public sealed class HomeworkLobbyView : MonoBehaviour
     {
         var go = new GameObject(name,typeof(RectTransform));
         go.transform.SetParent(parent,false);
+        // RectTransform was attached by this factory, so retrieving it once is required to set its layout.
         var rect = go.GetComponent<RectTransform>();
         rect.anchorMin = rect.anchorMax = new Vector2(0,1);
         rect.pivot = new Vector2(0,1);
@@ -175,6 +187,7 @@ public sealed class HomeworkLobbyView : MonoBehaviour
         var go = Box(parent,text,x,y,w,h,new Color(.9f,.9f,.9f));
         Border(go);
         var button = go.AddComponent<Button>();
+        // Box created this Image. Retrieve it once to connect the generated button to its own background.
         button.targetGraphic = go.GetComponent<Image>();
         button.transition = Selectable.Transition.None;
         var label = Label(go.transform,text,4,0,w-8,h,16);
@@ -192,6 +205,7 @@ public sealed class HomeworkLobbyView : MonoBehaviour
         input.textComponent = text;
         input.text = value;
         input.characterLimit = 64;
+        // Box created this Image. Retrieve it once to connect the generated input to its own background.
         input.targetGraphic = go.GetComponent<Image>();
         input.transition = Selectable.Transition.None;
         return input;
@@ -207,6 +221,7 @@ public sealed class CanvasTextRefresher : MonoBehaviour
 {
     private Canvas canvas;
     private float lastScale = -1;
+    // This helper is added to the generated Canvas object. Cache its Canvas once for scale-change checks.
     private void Awake() => canvas = GetComponent<Canvas>();
     private void OnEnable() => Canvas.preWillRenderCanvases += CheckScale;
     private void OnDisable() => Canvas.preWillRenderCanvases -= CheckScale;
@@ -214,6 +229,8 @@ public sealed class CanvasTextRefresher : MonoBehaviour
     {
         if (canvas == null || Mathf.Approximately(canvas.scaleFactor, lastScale)) return;
         lastScale = canvas.scaleFactor;
+        // A scale change invalidates glyph meshes for every generated label, including hidden panels.
+        // This traversal happens only when scale changes, without updating network or player-list data.
         foreach (var text in GetComponentsInChildren<Text>(true)) text.SetAllDirty();
     }
 }
